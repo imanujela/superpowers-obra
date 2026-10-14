@@ -1,3 +1,16 @@
+"""Integration tests for the superpowers plugin's ``register`` function.
+
+Covers:
+
+- Hook registration (only ``pre_llm_call`` is attached).
+- Skill registration (every stock skill registers as a ``Path``).
+- Bootstrap injection (first turn returns context; later turns return None).
+- Layout resolution (clone and flattened layouts; missing skills raises).
+- Skill description extraction from frontmatter.
+"""
+
+from __future__ import annotations
+
 import importlib
 import importlib.util
 import os
@@ -5,10 +18,12 @@ import re
 import shutil
 import sys
 from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
-# Point at the plugin directory
+# Point at the plugin directory.
 _PLUGIN_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "../../.hermes-plugin")
 )
@@ -17,16 +32,17 @@ sys.path.insert(0, _PLUGIN_DIR)
 BOOTSTRAP_MARKER = "superpowers:using-superpowers bootstrap for hermes"
 
 
-def _load_plugin():
-    """Re-import plugin module fresh."""
+def _load_plugin() -> Any:
+    """Re-import the plugin module fresh (clearing any cached version)."""
     if "__init__" in sys.modules:
         del sys.modules["__init__"]
     return importlib.import_module("__init__")
 
 
-def _fire_pre_llm(ctx, **kwargs):
+def _fire_pre_llm(ctx: Any, **kwargs: Any) -> Any:
+    """Invoke the registered pre_llm_call hook with defaults merged over kwargs."""
     hook = ctx._hooks["pre_llm_call"]
-    defaults = {
+    defaults: dict[str, Any] = {
         "session_id": "s1",
         "user_message": "hi",
         "conversation_history": [],
@@ -39,15 +55,15 @@ def _fire_pre_llm(ctx, **kwargs):
 
 
 class TestPluginRegistration:
-    def test_register_attaches_only_pre_llm_call_hook(self, mock_ctx):
+    def test_register_attaches_only_pre_llm_call_hook(self, mock_ctx: Any) -> None:
         plugin = _load_plugin()
         plugin.register(mock_ctx)
         assert list(mock_ctx._hooks.keys()) == ["pre_llm_call"]
 
-    def test_register_registers_every_stock_skill_as_path(self, mock_ctx):
+    def test_register_registers_every_stock_skill_as_path(self, mock_ctx: Any) -> None:
         plugin = _load_plugin()
         plugin.register(mock_ctx)
-        # The conftest mock raises on non-Path (mirroring hermes' real
+        # The conftest mock raises on non-Path (mirroring Hermes' real
         # register_skill), so reaching these asserts proves every
         # registration passed a pathlib.Path.
         assert "using-superpowers" in mock_ctx._skills
@@ -58,7 +74,7 @@ class TestPluginRegistration:
             assert path.parent.name == name
             assert path.is_file()
 
-    def test_registered_skills_match_skill_directories(self, mock_ctx):
+    def test_registered_skills_match_skill_directories(self, mock_ctx: Any) -> None:
         plugin = _load_plugin()
         plugin.register(mock_ctx)
         skills_root = plugin._skills_dir()
@@ -71,7 +87,7 @@ class TestPluginRegistration:
 
 
 class TestBootstrapInjection:
-    def test_first_turn_returns_bootstrap_context(self, mock_ctx):
+    def test_first_turn_returns_bootstrap_context(self, mock_ctx: Any) -> None:
         plugin = _load_plugin()
         plugin.register(mock_ctx)
         result = _fire_pre_llm(mock_ctx, is_first_turn=True)
@@ -81,13 +97,13 @@ class TestBootstrapInjection:
         assert content.startswith("<EXTREMELY_IMPORTANT>")
         assert content.rstrip().endswith("</EXTREMELY_IMPORTANT>")
 
-    def test_later_turns_return_none(self, mock_ctx):
+    def test_later_turns_return_none(self, mock_ctx: Any) -> None:
         plugin = _load_plugin()
         plugin.register(mock_ctx)
         assert _fire_pre_llm(mock_ctx, is_first_turn=False) is None
         assert _fire_pre_llm(mock_ctx, is_first_turn=None) is None
 
-    def test_hook_tolerates_future_kwargs(self, mock_ctx):
+    def test_hook_tolerates_future_kwargs(self, mock_ctx: Any) -> None:
         plugin = _load_plugin()
         plugin.register(mock_ctx)
         result = _fire_pre_llm(
@@ -97,8 +113,18 @@ class TestBootstrapInjection:
 
 
 class TestLayoutResolution:
-    def _stage(self, tmp_path, layout):
-        """Copy the plugin module + a minimal skills tree in the given layout."""
+    def _stage(self, tmp_path: Path, layout: str) -> Path:
+        """Copy the plugin module and a minimal skills tree in the given layout.
+
+        Args:
+            tmp_path: pytest's temporary directory fixture.
+            layout: ``"clone"`` (git-clone: .hermes-plugin/ and skills/ are
+                siblings) or ``"flat"`` (module at plugin dir root, skills/
+                nested inside it).
+
+        Returns:
+            The path to the staged plugin directory.
+        """
         src_skills = Path(_PLUGIN_DIR).parent / "skills"
         if layout == "clone":
             plugdir = tmp_path / "superpowers" / ".hermes-plugin"
@@ -111,30 +137,39 @@ class TestLayoutResolution:
             shutil.copytree(src_skills / skill, skills / skill)
         return plugdir
 
-    def _load_from(self, plugdir):
+    def _load_from(self, plugdir: Path) -> Any:
+        """Load the plugin module from an explicit directory path."""
         spec = importlib.util.spec_from_file_location(
             f"hermes_plugin_test_{plugdir.parent.name}_{plugdir.name}",
             plugdir / "__init__.py",
         )
+        assert spec is not None
         mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
         spec.loader.exec_module(mod)
         return mod
 
-    def test_clone_layout_resolves_sibling_skills(self, tmp_path, mock_ctx):
+    def test_clone_layout_resolves_sibling_skills(
+        self, tmp_path: Path, mock_ctx: Any
+    ) -> None:
         # git-clone install: .hermes-plugin/ and skills/ are siblings.
         plugdir = self._stage(tmp_path, "clone")
         mod = self._load_from(plugdir)
         mod.register(mock_ctx)
         assert "using-superpowers" in mock_ctx._skills
 
-    def test_flat_layout_resolves_nested_skills(self, tmp_path, mock_ctx):
+    def test_flat_layout_resolves_nested_skills(
+        self, tmp_path: Path, mock_ctx: Any
+    ) -> None:
         # flattened install: module at the plugin dir root, skills/ inside it.
         plugdir = self._stage(tmp_path, "flat")
         mod = self._load_from(plugdir)
         mod.register(mock_ctx)
         assert "using-superpowers" in mock_ctx._skills
 
-    def test_missing_skills_raises_loudly(self, tmp_path, mock_ctx):
+    def test_missing_skills_raises_loudly(
+        self, tmp_path: Path, mock_ctx: Any
+    ) -> None:
         plugdir = tmp_path / "superpowers"
         plugdir.mkdir(parents=True)
         shutil.copy(Path(_PLUGIN_DIR) / "__init__.py", plugdir / "__init__.py")
@@ -144,18 +179,22 @@ class TestLayoutResolution:
 
 
 class TestSkillDescriptions:
-    """Hermes builds its skill catalogue from register_skill(description=...),
-    which defaults to "". Registering the path alone left every stock skill
-    blank in that catalogue, so the model had nothing to select on."""
+    """Hermes builds its skill catalogue from register_skill(description=...).
 
-    def test_every_stock_skill_registers_a_description(self, mock_ctx):
+    Registering the path alone left every stock skill blank in that catalogue,
+    so the model had nothing to select on.
+    """
+
+    def test_every_stock_skill_registers_a_description(self, mock_ctx: Any) -> None:
         plugin = _load_plugin()
         plugin.register(mock_ctx)
         assert set(mock_ctx._descriptions) == set(mock_ctx._skills)
-        blank = sorted(n for n, d in mock_ctx._descriptions.items() if not d.strip())
+        blank = sorted(
+            n for n, d in mock_ctx._descriptions.items() if not d.strip()
+        )
         assert blank == [], f"registered without a description: {blank}"
 
-    def test_descriptions_match_the_skill_frontmatter(self, mock_ctx):
+    def test_descriptions_match_the_skill_frontmatter(self, mock_ctx: Any) -> None:
         plugin = _load_plugin()
         plugin.register(mock_ctx)
         skills_dir = Path(plugin._skills_dir())
@@ -167,12 +206,26 @@ class TestSkillDescriptions:
     @pytest.mark.parametrize(
         "block, expected",
         [
-            ('---\nname: demo\ndescription: "Quoted value."\n---\nbody', "Quoted value."),
-            ("---\nname: demo\ndescription: Bare value\n---\nbody", "Bare value"),
-            ("---\nname: demo\n---\nbody", ""),
-            ("no frontmatter at all", ""),
+            (
+                '---\nname: demo\ndescription: "Quoted value."\n---\nbody',
+                "Quoted value.",
+            ),
+            (
+                "---\nname: demo\ndescription: Bare value\n---\nbody",
+                "Bare value",
+            ),
+            (
+                "---\nname: demo\n---\nbody",
+                "",
+            ),
+            (
+                "no frontmatter at all",
+                "",
+            ),
         ],
     )
-    def test_frontmatter_value_parsing(self, block, expected):
+    def test_frontmatter_value_parsing(
+        self, block: str, expected: str
+    ) -> None:
         plugin = _load_plugin()
         assert plugin._frontmatter_value(block, "description") == expected

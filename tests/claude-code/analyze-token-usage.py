@@ -1,151 +1,202 @@
 #!/usr/bin/env python3
+"""Analyze token usage from Claude Code session transcripts.
+
+Breaks down usage by main session and individual subagents, printing a
+per-agent table and aggregate totals with estimated cost.
 """
-Analyze token usage from Claude Code session transcripts.
-Breaks down usage by main session and individual subagents.
-"""
+
+from __future__ import annotations
 
 import json
+import logging
 import sys
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
+from typing import Any
 
-def analyze_main_session(filepath):
-    """Analyze a session file and return token usage broken down by agent."""
-    main_usage = {
-        'input_tokens': 0,
-        'output_tokens': 0,
-        'cache_creation': 0,
-        'cache_read': 0,
-        'messages': 0
-    }
+logger = logging.getLogger(__name__)
 
-    # Track usage per subagent
-    subagent_usage = defaultdict(lambda: {
-        'input_tokens': 0,
-        'output_tokens': 0,
-        'cache_creation': 0,
-        'cache_read': 0,
-        'messages': 0,
-        'description': None
-    })
+# Cost rates (USD per million tokens).
+_INPUT_COST_PER_M = 3.0
+_OUTPUT_COST_PER_M = 15.0
 
-    with open(filepath, 'r') as f:
+_USAGE_FIELDS = (
+    "input_tokens",
+    "output_tokens",
+    "cache_creation",
+    "cache_read",
+    "messages",
+)
+
+
+def _empty_usage(include_description: bool = False) -> dict[str, Any]:
+    """Return a fresh usage dict with all counters zeroed."""
+    base: dict[str, Any] = {f: 0 for f in _USAGE_FIELDS}
+    if include_description:
+        base["description"] = None
+    return base
+
+
+def _accumulate(target: dict[str, Any], usage: dict[str, Any]) -> None:
+    """Add *usage* values into *target* in place."""
+    for field in _USAGE_FIELDS:
+        target[field] += usage.get(field, 0)
+
+
+def _extract_subagent_description(
+    subagent: dict[str, Any], agent_id: str, result: dict[str, Any]
+) -> None:
+    """Set a subagent's description from the prompt if not already set."""
+    if subagent["description"] is not None:
+        return
+    prompt = result.get("prompt", "")
+    first_line = prompt.split("\n")[0] if prompt else f"agent-{agent_id}"
+    if first_line.startswith("You are "):
+        first_line = first_line[8:]
+    subagent["description"] = first_line[:60]
+
+
+def analyze_main_session(
+    filepath: str,
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    """Analyze a session file and return token usage broken down by agent.
+
+    Args:
+        filepath: Path to a JSONL session transcript.
+
+    Returns:
+        A ``(main_usage, subagent_usage)`` tuple where *main_usage* is the
+        aggregate for the main session and *subagent_usage* maps agent IDs to
+        their per-agent usage dicts.
+    """
+    main_usage = _empty_usage()
+    subagent_usage: dict[str, dict[str, Any]] = defaultdict(
+        lambda: _empty_usage(include_description=True)
+    )
+
+    with open(filepath, encoding="utf-8") as f:
         for line in f:
             try:
                 data = json.loads(line)
+            except json.JSONDecodeError:
+                logger.debug(
+                    "Skipping malformed JSON line in %s", filepath, exc_info=True
+                )
+                continue
 
-                # Main session assistant messages
-                if data.get('type') == 'assistant' and 'message' in data:
-                    main_usage['messages'] += 1
-                    msg_usage = data['message'].get('usage', {})
-                    main_usage['input_tokens'] += msg_usage.get('input_tokens', 0)
-                    main_usage['output_tokens'] += msg_usage.get('output_tokens', 0)
-                    main_usage['cache_creation'] += msg_usage.get('cache_creation_input_tokens', 0)
-                    main_usage['cache_read'] += msg_usage.get('cache_read_input_tokens', 0)
+            # Main session assistant messages.
+            if data.get("type") == "assistant" and "message" in data:
+                main_usage["messages"] += 1
+                msg_usage = data["message"].get("usage", {})
+                _accumulate(main_usage, msg_usage)
 
-                # Subagent tool results
-                if data.get('type') == 'user' and 'toolUseResult' in data:
-                    result = data['toolUseResult']
-                    if 'usage' in result and 'agentId' in result:
-                        agent_id = result['agentId']
-                        usage = result['usage']
-
-                        # Get description from prompt if available
-                        if subagent_usage[agent_id]['description'] is None:
-                            prompt = result.get('prompt', '')
-                            # Extract first line as description
-                            first_line = prompt.split('\n')[0] if prompt else f"agent-{agent_id}"
-                            if first_line.startswith('You are '):
-                                first_line = first_line[8:]  # Remove "You are "
-                            subagent_usage[agent_id]['description'] = first_line[:60]
-
-                        subagent_usage[agent_id]['messages'] += 1
-                        subagent_usage[agent_id]['input_tokens'] += usage.get('input_tokens', 0)
-                        subagent_usage[agent_id]['output_tokens'] += usage.get('output_tokens', 0)
-                        subagent_usage[agent_id]['cache_creation'] += usage.get('cache_creation_input_tokens', 0)
-                        subagent_usage[agent_id]['cache_read'] += usage.get('cache_read_input_tokens', 0)
-            except Exception:
-                pass
+            # Subagent tool results.
+            if data.get("type") == "user" and "toolUseResult" in data:
+                result = data["toolUseResult"]
+                if "usage" not in result or "agentId" not in result:
+                    continue
+                agent_id = result["agentId"]
+                usage = result["usage"]
+                agent = subagent_usage[agent_id]
+                _extract_subagent_description(agent, agent_id, result)
+                agent["messages"] += 1
+                _accumulate(agent, usage)
 
     return main_usage, dict(subagent_usage)
 
-def format_tokens(n):
-    """Format token count with thousands separators."""
+
+def format_tokens(n: int) -> str:
+    """Format a token count with thousands separators."""
     return f"{n:,}"
 
-def calculate_cost(usage, input_cost_per_m=3.0, output_cost_per_m=15.0):
-    """Calculate estimated cost in dollars."""
-    total_input = usage['input_tokens'] + usage['cache_creation'] + usage['cache_read']
+
+def calculate_cost(
+    usage: dict[str, Any],
+    input_cost_per_m: float = _INPUT_COST_PER_M,
+    output_cost_per_m: float = _OUTPUT_COST_PER_M,
+) -> float:
+    """Calculate estimated cost in dollars.
+
+    Args:
+        usage: A usage dict with token counters.
+        input_cost_per_m: Cost per million input tokens (including cache).
+        output_cost_per_m: Cost per million output tokens.
+
+    Returns:
+        Estimated cost in USD.
+    """
+    total_input = (
+        usage["input_tokens"] + usage["cache_creation"] + usage["cache_read"]
+    )
     input_cost = total_input * input_cost_per_m / 1_000_000
-    output_cost = usage['output_tokens'] * output_cost_per_m / 1_000_000
+    output_cost = usage["output_tokens"] * output_cost_per_m / 1_000_000
     return input_cost + output_cost
 
-def main():
+
+def _print_agent_row(
+    agent_id: str,
+    description: str,
+    usage: dict[str, Any],
+) -> None:
+    """Print one table row for an agent."""
+    cost = calculate_cost(usage)
+    print(
+        f"{agent_id:<15} {description:<35} "
+        f"{usage['messages']:>5} "
+        f"{format_tokens(usage['input_tokens']):>10} "
+        f"{format_tokens(usage['output_tokens']):>10} "
+        f"{format_tokens(usage['cache_read']):>10} "
+        f"${cost:>7.2f}"
+    )
+
+
+def main() -> int:
+    """CLI entry point. Returns the exit code."""
     if len(sys.argv) < 2:
         print("Usage: analyze-token-usage.py <session-file.jsonl>")
-        sys.exit(1)
+        return 1
 
     main_session_file = sys.argv[1]
 
     if not Path(main_session_file).exists():
         print(f"Error: Session file not found: {main_session_file}")
-        sys.exit(1)
+        return 1
 
-    # Analyze the session
     main_usage, subagent_usage = analyze_main_session(main_session_file)
 
     print("=" * 100)
     print("TOKEN USAGE ANALYSIS")
     print("=" * 100)
     print()
-
-    # Print breakdown
     print("Usage Breakdown:")
     print("-" * 100)
-    print(f"{'Agent':<15} {'Description':<35} {'Msgs':>5} {'Input':>10} {'Output':>10} {'Cache':>10} {'Cost':>8}")
+    print(
+        f"{'Agent':<15} {'Description':<35} {'Msgs':>5} "
+        f"{'Input':>10} {'Output':>10} {'Cache':>10} {'Cost':>8}"
+    )
     print("-" * 100)
 
-    # Main session
-    cost = calculate_cost(main_usage)
-    print(f"{'main':<15} {'Main session (coordinator)':<35} "
-          f"{main_usage['messages']:>5} "
-          f"{format_tokens(main_usage['input_tokens']):>10} "
-          f"{format_tokens(main_usage['output_tokens']):>10} "
-          f"{format_tokens(main_usage['cache_read']):>10} "
-          f"${cost:>7.2f}")
+    _print_agent_row("main", "Main session (coordinator)", main_usage)
 
-    # Subagents (sorted by agent ID)
-    for agent_id in sorted(subagent_usage.keys()):
+    for agent_id in sorted(subagent_usage):
         usage = subagent_usage[agent_id]
-        cost = calculate_cost(usage)
-        desc = usage['description'] or f"agent-{agent_id}"
-        print(f"{agent_id:<15} {desc:<35} "
-              f"{usage['messages']:>5} "
-              f"{format_tokens(usage['input_tokens']):>10} "
-              f"{format_tokens(usage['output_tokens']):>10} "
-              f"{format_tokens(usage['cache_read']):>10} "
-              f"${cost:>7.2f}")
+        desc = usage.get("description") or f"agent-{agent_id}"
+        _print_agent_row(agent_id, desc, usage)
 
     print("-" * 100)
 
-    # Calculate totals
-    total_usage = {
-        'input_tokens': main_usage['input_tokens'],
-        'output_tokens': main_usage['output_tokens'],
-        'cache_creation': main_usage['cache_creation'],
-        'cache_read': main_usage['cache_read'],
-        'messages': main_usage['messages']
-    }
-
+    # Aggregate totals.
+    total_usage = _empty_usage()
+    _accumulate(total_usage, main_usage)
     for usage in subagent_usage.values():
-        total_usage['input_tokens'] += usage['input_tokens']
-        total_usage['output_tokens'] += usage['output_tokens']
-        total_usage['cache_creation'] += usage['cache_creation']
-        total_usage['cache_read'] += usage['cache_read']
-        total_usage['messages'] += usage['messages']
+        _accumulate(total_usage, usage)
 
-    total_input = total_usage['input_tokens'] + total_usage['cache_creation'] + total_usage['cache_read']
-    total_tokens = total_input + total_usage['output_tokens']
+    total_input = (
+        total_usage["input_tokens"]
+        + total_usage["cache_creation"]
+        + total_usage["cache_read"]
+    )
+    total_tokens = total_input + total_usage["output_tokens"]
     total_cost = calculate_cost(total_usage)
 
     print()
@@ -153,16 +204,21 @@ def main():
     print(f"  Total messages:         {format_tokens(total_usage['messages'])}")
     print(f"  Input tokens:           {format_tokens(total_usage['input_tokens'])}")
     print(f"  Output tokens:          {format_tokens(total_usage['output_tokens'])}")
-    print(f"  Cache creation tokens:  {format_tokens(total_usage['cache_creation'])}")
+    print(
+        f"  Cache creation tokens:  {format_tokens(total_usage['cache_creation'])}"
+    )
     print(f"  Cache read tokens:      {format_tokens(total_usage['cache_read'])}")
     print()
     print(f"  Total input (incl cache): {format_tokens(total_input)}")
     print(f"  Total tokens:             {format_tokens(total_tokens)}")
     print()
     print(f"  Estimated cost: ${total_cost:.2f}")
-    print("  (at $3/$15 per M tokens for input/output)")
+    print(f"  (at ${_INPUT_COST_PER_M}/${_OUTPUT_COST_PER_M} per M tokens for input/output)")
     print()
     print("=" * 100)
 
-if __name__ == '__main__':
-    main()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

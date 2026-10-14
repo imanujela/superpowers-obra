@@ -1,25 +1,40 @@
+"""Shared pytest fixtures for the Hermes plugin test suite."""
+
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
-from unittest.mock import MagicMock
 
 
 @pytest.fixture
-def mock_ctx():
-    ctx = MagicMock()
-    ctx._hooks = {}
-    ctx._skills = {}
-    ctx._descriptions = {}
+def mock_ctx() -> Any:
+    """Return a MagicMock simulating the Hermes plugin context.
 
-    def register_hook(event, fn):
+    Mimics ``register_hook`` and ``register_skill`` with the same fidelity
+    constraints as the real Hermes API:
+
+    - ``register_skill`` calls ``path.exists()`` internally, which breaks on a
+      bare ``str`` (the bug that silently disabled the whole plugin,
+      2026-07-23). Keeping that fidelity means a regression to ``str`` paths
+      fails these tests instead of failing silently inside Hermes.
+    """
+    ctx = MagicMock()
+    ctx._hooks: dict[str, Any] = {}
+    ctx._skills: dict[str, Path] = {}
+    ctx._descriptions: dict[str, str] = {}
+
+    def register_hook(event: str, fn: Any) -> None:
         ctx._hooks[event] = fn
 
-    def register_skill(name, path, description="", frontmatter=None):
-        # Mimic hermes' real register_skill, which calls path.exists() and
-        # therefore breaks on a str (the bug that silently disabled the whole
-        # plugin, found 2026-07-23). Keeping that fidelity here means a
-        # regression to str paths fails these tests instead of failing
-        # silently inside hermes.
+    def register_skill(
+        name: str,
+        path: Path,
+        description: str = "",
+        frontmatter: Any = None,
+    ) -> None:
         if not isinstance(path, Path):
             raise AttributeError(
                 f"register_skill requires a pathlib.Path, got {type(path).__name__}"

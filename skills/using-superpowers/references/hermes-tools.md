@@ -11,12 +11,16 @@ Skills speak in actions ("dispatch a subagent", "create a todo", "read a file").
 | Edit a file (targeted patch) | `patch` |
 | Run a shell command | `terminal` |
 | Search file contents | `search_files` |
-| Find files by name | `terminal` with `find` |
+| Find files by name | `search_files` with `target='files'` |
 | Fetch a URL / read a webpage | `web_extract(urls=[...])` |
 | Search the web | `web_search(query=...)` |
-| Dispatch a subagent | `delegate_task(goal=..., context=..., toolsets=[...], role="leaf")` |
+| Dispatch a subagent | `delegate_task(goal=..., context=..., role='leaf')` |
 | Task tracking | `todo` tool |
-| Invoke a skill | `skill_view("skill-name")` |
+| Invoke a skill | `skill_view('skill-name')` |
+| List available skills | `skills_list()` |
+| Save a durable procedure | `skill_manage` |
+| Save a durable fact | `memory` |
+| Drive a browser | `browser_exec` |
 
 ## Instructions file
 
@@ -32,8 +36,7 @@ skill_view("brainstorming")
 skill_view("test-driven-development")
 ```
 
-If `skill_view` cannot find a superpowers skill (it may not appear in the catalog
-until the plugin fully registers it), fall back to reading the SKILL.md directly:
+If `skill_view` cannot find a superpowers skill (it may not appear in the catalog until the plugin fully registers it), fall back to reading the SKILL.md directly:
 
 ```
 read_file(path="~/.hermes/plugins/superpowers/skills/<skill-name>/SKILL.md")
@@ -46,7 +49,7 @@ This fallback is the same mechanism used by other harnesses without native skill
 Use `delegate_task` to spawn isolated subagents for parallel or sequential workstreams:
 
 ```
-delegate_task(goal="...", context="...", toolsets=[...], role="leaf")
+delegate_task(goal="...", context="...", role="leaf")
 ```
 
 If `delegate_task` is unavailable, do the work inline rather than inventing tool calls.

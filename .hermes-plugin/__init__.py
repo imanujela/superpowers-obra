@@ -1,21 +1,37 @@
+"""Superpowers plugin for Hermes Agent.
+
+Registers the stock skills/ tree with Hermes' native skill loader and injects
+the using-superpowers bootstrap into the first turn via the pre_llm_call hook.
+"""
+
+from __future__ import annotations
+
+import logging
 import os
 import re
 from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 BOOTSTRAP_MARKER = "superpowers:using-superpowers bootstrap for hermes"
 
 
 def _skills_dir() -> str:
-    """Locate the stock skills/ tree for either supported install layout.
+    """Locate the stock ``skills/`` tree for either supported install layout.
 
-    - git-clone install (`hermes plugins install obra/superpowers`): the plugin
-      dir is the repo root, so `.hermes-plugin/` and `skills/` are siblings and
-      this module resolves `../skills`.
-    - flattened install (plugin files copied to the plugin dir root): `skills/`
+    Supports two layouts:
+
+    - **git-clone** (``hermes plugins install obra/superpowers``): the plugin
+      directory is the repo root, so ``.hermes-plugin/`` and ``skills/`` are
+      siblings and this function resolves ``../skills``.
+    - **flattened** (plugin files copied to the plugin dir root): ``skills/``
       sits next to this module.
 
-    Raises loudly when neither matches — a bootstrap that silently skips is how
-    a broken install masquerades as a working one.
+    Raises:
+        RuntimeError: if neither layout contains a ``using-superpowers/SKILL.md``.
+            A bootstrap that silently skips is how a broken install masquerades
+            as a working one.
     """
     here = os.path.dirname(os.path.realpath(__file__))
     candidates = (
@@ -33,6 +49,7 @@ def _skills_dir() -> str:
 
 
 def _strip_frontmatter(content: str) -> str:
+    """Remove YAML frontmatter from *content* and return the stripped body."""
     match = re.match(r"^---\n[\s\S]*?\n---\n([\s\S]*)$", content)
     return (match.group(1) if match else content).strip()
 
@@ -41,9 +58,9 @@ def _frontmatter_value(content: str, key: str) -> str:
     """Return a flat ``key: value`` scalar from a SKILL.md frontmatter block.
 
     Hermes reads a skill's description from ``register_skill``'s ``description``
-    argument, which defaults to "" — registering only the path left every stock
-    skill with a blank description in the skill catalogue, so the model had
-    nothing to select on. Stock frontmatter is a flat block of single-line
+    argument, which defaults to ``""``. Registering only the path left every
+    stock skill with a blank description in the skill catalogue, so the model
+    had nothing to select on. Stock frontmatter is a flat block of single-line
     scalars, so a line scan covers it without a YAML dependency.
     """
     match = re.match(r"^---\n([\s\S]*?)\n---\n", content)
@@ -57,10 +74,24 @@ def _frontmatter_value(content: str, key: str) -> str:
 
 
 def _build_bootstrap(skills_dir: str) -> str:
-    with open(
-        os.path.join(skills_dir, "using-superpowers", "SKILL.md"),
-        encoding="utf-8",
-    ) as f:
+    """Build the bootstrap context string injected into the first turn.
+
+    Reads the using-superpowers SKILL.md body (frontmatter stripped) and the
+    Hermes tool-mapping reference, then wraps them in the EXTREMELY_IMPORTANT
+    envelope with the bootstrap marker.
+
+    Args:
+        skills_dir: Absolute path to the stock ``skills/`` tree.
+
+    Returns:
+        The full bootstrap context string.
+
+    Raises:
+        FileNotFoundError: if the using-superpowers SKILL.md or the
+            hermes-tools.md reference is missing.
+    """
+    skill_md_path = os.path.join(skills_dir, "using-superpowers", "SKILL.md")
+    with open(skill_md_path, encoding="utf-8") as f:
         body = _strip_frontmatter(f.read())
 
     tools_path = os.path.join(
@@ -90,7 +121,18 @@ def _build_bootstrap(skills_dir: str) -> str:
     )
 
 
-def register(ctx):
+def register(ctx: Any) -> None:
+    """Register all stock skills and the pre_llm_call hook with Hermes.
+
+    Walks the ``skills/`` tree, registers every directory containing a
+    ``SKILL.md`` with Hermes' native loader (so ``skill_view`` can load them
+    on demand), then attaches the ``pre_llm_call`` hook that injects the
+    bootstrap into the first turn.
+
+    Args:
+        ctx: Hermes plugin context providing ``register_skill`` and
+            ``register_hook``.
+    """
     skills_dir = _skills_dir()
     bootstrap = _build_bootstrap(skills_dir)
 
@@ -100,24 +142,34 @@ def register(ctx):
     # hermes silently disables the whole plugin (verified 2026-07-23).
     for name in sorted(os.listdir(skills_dir)):
         skill_md = os.path.join(skills_dir, name, "SKILL.md")
-        if os.path.isfile(skill_md):
+        if not os.path.isfile(skill_md):
+            continue
+        try:
             with open(skill_md, encoding="utf-8") as f:
                 description = _frontmatter_value(f.read(), "description")
             ctx.register_skill(name, Path(skill_md), description=description)
+        except OSError:
+            logger.debug(
+                "superpowers: failed to read skill %s at %s",
+                name,
+                skill_md,
+                exc_info=True,
+            )
+            raise
 
     # pre_llm_call returning {"context": ...} is the documented injection path
     # (on_session_start return values are ignored, and ctx.inject_message
     # refuses from that hook — verified empirically 2026-07-23). The context is
     # appended to the first turn's user message.
     def pre_llm_call(
-        session_id=None,
-        user_message=None,
-        conversation_history=None,
-        is_first_turn=None,
-        model=None,
-        platform=None,
-        **kwargs,
-    ):
+        session_id: str | None = None,
+        user_message: str | None = None,
+        conversation_history: list | None = None,
+        is_first_turn: bool | None = None,
+        model: str | None = None,
+        platform: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, str] | None:
         if is_first_turn:
             return {"context": bootstrap}
         return None

@@ -1,5 +1,7 @@
 # Superpowers
 
+> **Upgraded fork** by [imanujela](https://github.com/imanujela) — originally built by [Jesse Vincent (obra)](https://github.com/obra). This fork hardens the Python plugin (type hints, logging with `exc_info=True`, narrowed exceptions), tightens shell script safety (`set -euo pipefail` everywhere), and sharpens the Hermes Agent integration. All credit for the methodology and skills design belongs to the original author.
+
 Superpowers is a complete software development methodology for your coding agents, built on top of a set of composable skills and some initial instructions that make sure your agent uses them.
 
 ## Table of Contents
@@ -271,7 +273,7 @@ Qwen Code installs plugins from Claude Code marketplaces directly.
 Install Superpowers as a Hermes plugin from this repository:
 
 ```bash
-hermes plugins install obra/superpowers --enable
+hermes plugins install imanujela/superpowers --enable
 ```
 
 Restart any active Hermes sessions after installing. Note: Hermes has no
