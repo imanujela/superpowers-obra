@@ -4,62 +4,27 @@
 
 Superpowers is a complete software development methodology for your coding agents, built on top of a set of composable skills and some initial instructions that make sure your agent uses them.
 
-## Table of Contents
-
-- [How it works](#how-it-works)
-- [Commercial Services](#commercial-services)
-- [Getting Started](#installation)
-  - [Claude Code](#claude-code)
-  - [Antigravity](#antigravity)
-  - [Codex App](#codex-app)
-  - [Codex CLI](#codex-cli)
-  - [Cursor](#cursor)
-  - [Devin CLI](#devin-cli)
-  - [Factory Droid](#factory-droid)
-  - [Gemini CLI](#gemini-cli)
-  - [GitHub Copilot CLI](#github-copilot-cli)
-  - [Grok Build CLI](#grok-build-cli)
-  - [Kimi Code](#kimi-code)
-  - [OpenCode](#opencode)
-  - [Pi](#pi)
-  - [Qwen Code](#qwen-code)
-  - [Hermes Agent](#hermes-agent)
-  - [Muse](#muse)
-- [The Basic Workflow](#the-basic-workflow)
-- [When Something Goes Wrong](#when-something-goes-wrong)
-- [Community](#community)
-- [What's Inside](#whats-inside)
-- [Philosophy](#philosophy)
-- [Contributing](#contributing)
-- [Updating](#updating)
-- [License](#license)
-- [Visual companion telemetry](#visual-companion-telemetry)
-
-## How it works
-
-It starts from the moment you fire up your coding agent. As soon as it sees that you're building something, it *doesn't* just jump into trying to write code. Instead, it steps back and asks you what you're really trying to do. 
-
-Once it's teased a spec out of the conversation, it shows it to you in chunks short enough to actually read and digest. 
-
-After you've signed off on the design, your agent puts together an implementation plan that's clear enough for an enthusiastic junior engineer with poor taste, no judgement, no project context, and an aversion to testing to follow. It emphasizes true red/green TDD, YAGNI (You Aren't Gonna Need It), and DRY. 
-
-Next up, once you say "go", it launches a *subagent-driven-development* process, having agents work through each engineering task, inspecting and reviewing their work, and continuing forward. It's not uncommon for your agent to work autonomously for a couple hours at a time without deviating from the plan you put together.
-
-There's a bunch more to it, but that's the core of the system. And because the skills trigger automatically, you don't need to do anything special. Your coding agent just has Superpowers.
-
-## Commercial Services
-
-If you're using Superpowers in enterprise and could benefit from commercial support, additional tooling, or managed spending, please don't hesitate to drop us a line at sales@primeradiant.com.
-
 ## Installation
+
+### Hermes Agent (primary target for this fork)
+
+```bash
+hermes plugins install imanujela/superpowers-obra --enable --force
+```
+
+Restart any active Hermes sessions after installing. Note: Hermes has no
+post-compaction hook, so a very long session that compacts over its first
+turn loses the bootstrap — start a fresh session if skills stop triggering.
+
+### Other harnesses
 
 Installation differs by harness. If you use more than one, install Superpowers separately for each one.
 
-### Claude Code
+#### Claude Code
 
 Superpowers is available via the [official Claude plugin marketplace](https://claude.com/plugins/superpowers)
 
-#### Official Marketplace
+##### Official Marketplace
 
 - Install the plugin from Anthropic's official marketplace:
 
@@ -67,7 +32,7 @@ Superpowers is available via the [official Claude plugin marketplace](https://cl
   /plugin install superpowers@claude-plugins-official
   ```
 
-#### Superpowers Marketplace
+##### Superpowers Marketplace
 
 The Superpowers marketplace provides Superpowers and some other related plugins for Claude Code.
 
@@ -83,19 +48,19 @@ The Superpowers marketplace provides Superpowers and some other related plugins 
   /plugin install superpowers@superpowers-marketplace
   ```
 
-### Antigravity
+#### Antigravity
 
 Install Superpowers as a plugin from this repository:
 
 ```bash
-agy plugin install https://github.com/obra/superpowers
+agy plugin install https://github.com/imanujela/superpowers-obra
 ```
 
 Antigravity lists each installed skill's description, and the description of
 the `using-superpowers` skill prompts the model to load that skill at the start
 of a conversation. Reinstall with the same command to update.
 
-### Codex App
+#### Codex App
 
 Superpowers is available via the [official Codex plugin marketplace](https://github.com/openai/plugins).
 
@@ -103,7 +68,7 @@ Superpowers is available via the [official Codex plugin marketplace](https://git
 - You should see `Superpowers` in the Coding section.
 - Click the `+` next to Superpowers and follow the prompts.
 
-### Codex CLI
+#### Codex CLI
 
 Superpowers is available via the [official Codex plugin marketplace](https://github.com/openai/plugins).
 
@@ -121,7 +86,7 @@ Superpowers is available via the [official Codex plugin marketplace](https://git
 
 - Select `Install Plugin`.
 
-### Cursor
+#### Cursor
 
 - In Cursor Agent chat, install from marketplace:
 
@@ -131,12 +96,12 @@ Superpowers is available via the [official Codex plugin marketplace](https://git
 
 - Or search for "superpowers" in the plugin marketplace.
 
-### Devin CLI
+#### Devin CLI
 
 - Install the plugin from this repository:
 
   ```bash
-  devin plugins install obra/superpowers
+  devin plugins install imanujela/superpowers-obra
   ```
 
 - Update to the latest version with:
@@ -145,12 +110,12 @@ Superpowers is available via the [official Codex plugin marketplace](https://git
   devin plugins update superpowers
   ```
 
-### Factory Droid
+#### Factory Droid
 
 - Register the marketplace:
 
   ```bash
-  droid plugin marketplace add https://github.com/obra/superpowers
+  droid plugin marketplace add https://github.com/imanujela/superpowers-obra
   ```
 
 - Install the plugin:
@@ -159,12 +124,12 @@ Superpowers is available via the [official Codex plugin marketplace](https://git
   droid plugin install superpowers@superpowers
   ```
 
-### Gemini CLI
+#### Gemini CLI
 
 - Install the extension:
 
   ```bash
-  gemini extensions install https://github.com/obra/superpowers
+  gemini extensions install https://github.com/imanujela/superpowers-obra
   ```
 
 - Update later:
@@ -173,7 +138,7 @@ Superpowers is available via the [official Codex plugin marketplace](https://git
   gemini extensions update superpowers
   ```
 
-### GitHub Copilot CLI
+#### GitHub Copilot CLI
 
 - Register the marketplace:
 
@@ -187,7 +152,7 @@ Superpowers is available via the [official Codex plugin marketplace](https://git
   copilot plugin install superpowers@superpowers-marketplace
   ```
 
-### Grok Build CLI
+#### Grok Build CLI
 
 Superpowers is available via the [official Grok plugin marketplace](https://github.com/xai-org/plugin-marketplace).
 
@@ -203,7 +168,7 @@ Superpowers is available via the [official Grok plugin marketplace](https://gith
   /marketplace
   ```
 
-### Kimi Code
+#### Kimi Code
 
 Superpowers is available in Kimi Code's plugin marketplace.
 
@@ -218,12 +183,12 @@ Superpowers is available in Kimi Code's plugin marketplace.
 - Or install directly from this repository:
 
   ```text
-  /plugins install https://github.com/obra/superpowers
+  /plugins install https://github.com/imanujela/superpowers-obra
   ```
 
 - Detailed docs: [docs/README.kimi.md](docs/README.kimi.md)
 
-### OpenCode
+#### OpenCode
 
 OpenCode uses its own plugin install; install Superpowers separately even if you
 already use it in another harness.
@@ -231,35 +196,35 @@ already use it in another harness.
 - Tell OpenCode:
 
   ```
-  Fetch and follow instructions from https://raw.githubusercontent.com/obra/superpowers/refs/heads/main/.opencode/INSTALL.md
+  Fetch and follow instructions from https://raw.githubusercontent.com/imanujela/superpowers-obra/refs/heads/main/.opencode/INSTALL.md
   ```
 
 - Detailed docs: [docs/README.opencode.md](docs/README.opencode.md)
 
-### Pi
+#### Pi
 
 Install Superpowers as a Pi package from this repository:
 
 ```bash
-pi install git:github.com/obra/superpowers
+pi install git:github.com/imanujela/superpowers-obra
 ```
 
 For local development, run Pi with this checkout loaded as a temporary package:
 
 ```bash
-pi -e /path/to/superpowers
+pi -e /path/to/superpowers-obra
 ```
 
 The Pi package loads the Superpowers skills and a small extension that injects the `using-superpowers` bootstrap at session startup and again after compaction. Pi has native skills, so no compatibility `Skill` tool is required. Subagent and task-list tools remain optional Pi companion packages.
 
-### Qwen Code
+#### Qwen Code
 
 Qwen Code installs plugins from Claude Code marketplaces directly.
 
 - Install the plugin from this repository, and pick `superpowers` when prompted:
 
   ```bash
-  qwen extensions install obra/superpowers
+  qwen extensions install imanujela/superpowers-obra
   ```
 
 - Update later:
@@ -268,19 +233,7 @@ Qwen Code installs plugins from Claude Code marketplaces directly.
   qwen extensions update superpowers
   ```
 
-### Hermes Agent
-
-Install Superpowers as a Hermes plugin from this repository:
-
-```bash
-hermes plugins install imanujela/superpowers --enable
-```
-
-Restart any active Hermes sessions after installing. Note: Hermes has no
-post-compaction hook, so a very long session that compacts over its first
-turn loses the bootstrap — start a fresh session if skills stop triggering.
-
-### Muse
+#### Muse
 
 Superpowers is available as a native Muse plugin — same repo, same skills, all harnesses. The `using-superpowers` bootstrap is injected via the native `SessionStart` hook alongside Claude Code, Codex, Cursor, Gemini, Pi, and the rest — no per-session opt-in.
 
@@ -294,8 +247,8 @@ Superpowers is available as a native Muse plugin — same repo, same skills, all
   Or clone and install:
 
   ```bash
-  git clone https://github.com/obra/superpowers.git
-  muse plugins install ./superpowers
+  git clone https://github.com/imanujela/superpowers-obra.git
+  muse plugins install ./superpowers-obra
   muse plugins approve superpowers
   ```
 
@@ -306,6 +259,91 @@ Superpowers is available as a native Muse plugin — same repo, same skills, all
   ```
 
 Restart any active Muse sessions after installing so the `SessionStart` hook takes effect — skills are active immediately, hooks require approval on first install. To verify, start a fresh session and send `Let's make a react todo list` — a working install auto-triggers `brainstorming` before any code is written. Version is tracked in `.version-bump.json` so `scripts/bump-version.sh` keeps it in sync.
+
+---
+
+## What Changed in This Fork (v8.0.0)
+
+**12 files changed, 418 insertions, 217 deletions** vs upstream v7.0.0.
+
+### Python Plugin (`.hermes-plugin/__init__.py`)
+
+The Hermes plugin bootstrap that registers all 15 skills and injects the `using-superpowers` context on the first turn.
+
+- **Type hints** on every function: `str | None`, `dict[str, str] | None`, `list | None`, `bool | None`, `Any` for the context object
+- **Logging module** added (`logger = logging.getLogger(__name__)`) with `logger.debug(exc_info=True)` on skill read failures instead of silent propagation
+- **Google-style docstrings** on all functions (`_skills_dir`, `_strip_frontmatter`, `_frontmatter_value`, `_build_bootstrap`, `register`, `pre_llm_call`)
+- **Defensive `continue`** guard before attempting to read a SKILL.md that may not exist
+- **`from __future__ import annotations`** for clean union type syntax on Python 3.9+
+
+### Token Usage Analyzer (`tests/claude-code/analyze-token-usage.py`)
+
+- **Narrowed** bare `except Exception: pass` → `except json.JSONDecodeError` with `logger.debug(exc_info=True)` — malformed JSON lines are now logged, not silently swallowed
+- **Extracted helpers**: `_empty_usage()`, `_accumulate()`, `_extract_subagent_description()`, `_print_agent_row()` — removed copy-paste accumulation logic
+- **Module-level constants**: `_INPUT_COST_PER_M`, `_OUTPUT_COST_PER_M`, `_USAGE_FIELDS` — no more magic numbers inline
+- **Type hints** throughout
+- **`main()` returns exit code** instead of calling `sys.exit()` directly — testable
+
+### Test Suite (`tests/hermes/`)
+
+- Type hints on all test methods and fixtures across `conftest.py`, `test_bootstrap.py`, `test_plugin.py`
+- Improved docstrings on conftest fixtures and test classes
+- Defensive `assert spec is not None` and `assert spec.loader is not None` on importlib calls
+
+### Shell Scripts
+
+| File | Change |
+|------|--------|
+| `skills/brainstorming/scripts/start-server.sh` | Added `set -euo pipefail` |
+| `skills/brainstorming/scripts/stop-server.sh` | Added `set -euo pipefail`, defaulted `SESSION_DIR="${1:-}"` |
+| `skills/systematic-debugging/find-polluter.sh` | Upgraded `set -e` → `set -euo pipefail` |
+
+### Bootstrap Skill (`skills/using-superpowers/SKILL.md`)
+
+- Tightened prose throughout (removed redundant "Superpowers'" prefix from skill references)
+- Added `SOUL.md` to the User Instructions list alongside `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`
+
+### Hermes Tools Reference (`skills/using-superpowers/references/hermes-tools.md`)
+
+This file is injected verbatim into the first-turn bootstrap for Hermes sessions.
+
+- Added `skills_list()`, `skill_manage`, `memory`, `browser_exec` mappings
+- Changed "Find files by name" from `terminal with find` → `search_files with target='files'` (native Hermes tool)
+- Cleaned up `delegate_task` signature
+
+### Fork Metadata
+
+- `README.md`: fork notice with attribution to obra, all URLs updated to `imanujela/superpowers-obra`
+- `plugin.yaml`: version `7.0.0` → `8.0.0`, author updated
+
+### Files Changed
+
+1. `.hermes-plugin/__init__.py`
+2. `.hermes-plugin/plugin.yaml`
+3. `README.md`
+4. `skills/brainstorming/scripts/start-server.sh`
+5. `skills/brainstorming/scripts/stop-server.sh`
+6. `skills/systematic-debugging/find-polluter.sh`
+7. `skills/using-superpowers/SKILL.md`
+8. `skills/using-superpowers/references/hermes-tools.md`
+9. `tests/claude-code/analyze-token-usage.py`
+10. `tests/hermes/conftest.py`
+11. `tests/hermes/test_bootstrap.py`
+12. `tests/hermes/test_plugin.py`
+
+---
+
+## How it works
+
+It starts from the moment you fire up your coding agent. As soon as it sees that you're building something, it *doesn't* just jump into trying to write code. Instead, it steps back and asks you what you're really trying to do. 
+
+Once it's teased a spec out of the conversation, it shows it to you in chunks short enough to actually read and digest. 
+
+After you've signed off on the design, your agent puts together an implementation plan that's clear enough for an enthusiastic junior engineer with poor taste, no judgement, no project context, and an aversion to testing to follow. It emphasizes true red/green TDD, YAGNI (You Aren't Gonna Need It), and DRY. 
+
+Next up, once you say "go", it launches a *subagent-driven-development* process, having agents work through each engineering task, inspecting and reviewing their work, and continuing forward. It's not uncommon for your agent to work autonomously for a couple hours at a time without deviating from the plan you put together.
+
+There's a bunch more to it, but that's the core of the system. And because the skills trigger automatically, you don't need to do anything special. Your coding agent just has Superpowers.
 
 ## The Basic Workflow
 
@@ -336,7 +374,7 @@ The skill reads the session transcript, reports what happened with line-level ev
 Superpowers is built by [Jesse Vincent](https://blog.fsck.com) and the rest of the folks at [Prime Radiant](https://primeradiant.com).
 
 - **Discord**: [Join us](https://discord.gg/35wsABTejz) for community support, questions, and sharing what you're building with Superpowers
-- **Issues**: https://github.com/obra/superpowers/issues
+- **Issues**: https://github.com/imanujela/superpowers-obra/issues
 - **Release announcements**: [Sign up](https://primeradiant.com/superpowers/) to get notified about new versions
 
 ## What's Inside
